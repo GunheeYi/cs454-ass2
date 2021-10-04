@@ -1,8 +1,4 @@
-# class Path:
-#     def __init__(self, start, end, time):
-#         self.start = start
-#         self.end = end
-#         self.time = time
+import random
 
 class Line:
     def __init__(self, stops, time):
@@ -10,66 +6,151 @@ class Line:
         self.n = len(self.stops)
         self.time = time
 
-class World:
-    def __init__(self, n):
-        self.n = n
-        self.times = [[0 for _ in range(self.n)] for _ in range(self.n)]
-        # for path in paths:
-        #     self.times[path.start][path.end] = path.time
-        #     self.times[path.end][path.start] = path.time
+SCENARIO = 0
+
+# default scenario
+N = 21
+EPOCHS = 10
+POP = 20
+DEPARTURE = 2
+ARRIVAL = 19
+lines = [
+    Line([_ for _ in range(N)], 2),
+    Line([1, 6, 11, 16], 5),
+    Line([0, 10, 20], 8)
+]
+
+
+TIMETABLE = [[0 for _ in range(N)] for _ in range(N)]
+
+if SCENARIO==0:
+    pass
+else:
+    print("Undefined scenario!")
+    raise
     
-    def setPath(self, start, end, time):
-        self.times[start][end] = time
-        self.times[end][start] = time
+
+def hasDuplicates(l):
+    return not len(l)==len(set(l))
+
+
+
+def setTime(start, end, time):
+    TIMETABLE[start][end] = time
+    TIMETABLE[end][start] = time
+
+def getTime(start, end):
+    return TIMETABLE[start][end]
+
+def addLine(line):
+    n = len(line.stops)
+    for i in range(n-1):
+        for j in range(i+1, n):
+            a = line.stops[i]
+            b = line.stops[j]
+            newTime = line.time * (j-i)
+            curTime = getTime(a, b)
+            if curTime==0 or newTime < getTime(a, b):
+                setTime(a, b, newTime)
+
+def printTimeTable():
+    for i in range(N):
+        for j in range(N):
+            print(TIMETABLE[i][j], end="\t")
+        print()
+
+stops = list(map(lambda l: l.stops, lines))
+hubs = set(sum(stops[1:], []))
+
+for line in lines:
+    addLine(line)
+
+# printTimeTable()
+
+class Path:
+    def __init__(self, stops: list):
+        self.stops = stops
+        self.time = 0
+        fullStops = [DEPARTURE] + self.stops + [ARRIVAL]
+        self.n = len(fullStops)
+        for i in range(self.n-1):
+            time = getTime(fullStops[i], fullStops[i+1])
+            if time > 0: self.time += time
+            else:
+                # self.time += abs(fullStops[i+1]-fullStops[i])*2
+                raise RuntimeError
+    def __str__(self):
+        pathStr = '-'.join(map(str, self.stops))
+        return "{} ({}min)".format(pathStr, self.time)
+    def __eq__(self, other):
+        return self.stops == other.stops
+    def __hash__(self):
+        return sum(self.stops)
+
+def crossover(p1: Path, p2: Path):
+    if len(p1.stops) < 2 or len(p2.stops) < 2: return []
+
+    i1, j1 = random.sample(range(len(p1.stops)), 2)
+
+    a = p1.stops[i1]
+    b = p1.stops[j1]
+
+    if not (a in p2.stops and b in p2.stops): return []
+
+    i2 = p2.stops.index(a)
+    j2 = p2.stops.index(b)
+
+    sub1 = p1.stops[i1+1:j1]
+    sub2 = p2.stops[i2+1:j2]
+
+    newStops1 = p1.stops
+    newStops2 = p2.stops
+
+    newStops1[i1+1:j1] = sub2 if i2 < j2 else list(reversed(sub2))
+    newStops2[i2+1:j2] = sub1 if i2 < j2 else list(reversed(sub1))
     
-    def addLine(self, line):
-        n = len(line.stops)
-        for i in range(n-1):
-            for j in range(i+1, n):
-                self.setPath(line.stops[i], line.stops[j], (j-i)*line.time)
+    children = set()
+    if not hasDuplicates(newStops1): children.add(Path(newStops1))
+    if not hasDuplicates(newStops2): children.add(Path(newStops2))
+
+    return children
     
-    def printTime(self):
-        for i in range(self.n):
-            for j in range(self.n):
-                print(self.times[i][j], end="\t")
-            print()
-                
+def mutate(p1):
+    pass
+
+pool = set()
+
+for _ in range(POP*2):
+    pool.add(Path(random.sample(hubs, random.randrange(0, len(hubs)+1))))
+
+pooll = list(pool)
+pooll.sort(key=lambda x: x.time)
+pooll = pooll[0:POP]
+pool = set(pooll)
+
+print("Initial pool")
+for path in pooll:
+    print(path)
+
+for epoch in range(EPOCHS):
+    
+    # reproduce next generation with equivalent size of current pool
+    nextGen = []
+    timer = 0
+    while timer < 1000 and len(nextGen) <= POP:
+        timer += 1
+        p1, p2 = random.sample(pool, 2)
+        nextGen = {*nextGen, *crossover(p1, p2) }
+    pool = {*pool, *nextGen}
+    
+    # 
+    pooll = list(pool)
+    pooll.sort(key=lambda x: x.time)
+    pooll = pooll[0:POP]
+    pool = set(pooll)
+    
+    print("The fittest path in epoch {} is {}".format(epoch+1, pooll[0]))
 
 
 
-# line9stations = 38
-# line9paths = []
-# for i in range(line9stations-1):
-#     line9paths += [Path(i, i+1, 2)]
 
-# line9paths += [
-#     Path(1, 4, 3),
-#     Path(4, 6, 3),
-#     Path(6, 9, 3),
-#     Path(9, 12, 3),
-#     Path(12, 14, 3),
-#     Path(14, 16, 3),
-#     Path(16, 19, 3),
-#     Path(19, 22, 3),
-#     Path(22, 24, 3),
-#     Path(24, 26, 3),
-#     Path(26, 28, 3),
-#     Path(28, 29, 3),
-#     Path(29, 32, 3),
-#     Path(32, 35, 3),
-#     Path(35, 37, 3)
-# ]
-
-# line9 = Map(line9stations, line9paths)
-
-# for i in range(line9stations):
-#     for j in range(line9stations):
-#         print(line9.times[i][j], end=",")
-#     print()
-
-world = World(21)
-world.addLine(Line([_ for _ in range(21)], 2))
-world.addLine(Line([1, 6, 11, 16], 5))
-world.addLine(Line([0, 10, 20], 8))
-
-world.printTime()
